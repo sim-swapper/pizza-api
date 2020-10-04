@@ -1,4 +1,4 @@
-# Pizza Delivery Backend
+# Pizza Delivery
 A Simple PHP Pizza Delivery REST API
 
 # Installation
