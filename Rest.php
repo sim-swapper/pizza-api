@@ -1,4 +1,5 @@
 <?php 
+date_default_timezone_set('America/Los_Angeles');
 
 class Rest {
     private $conn;
@@ -13,6 +14,10 @@ class Rest {
         }
     }
 
+    function get_current_time() : string {
+        return date('m/d/Y h:i:s', time());
+    }
+
     function uuid() : string {
         $data = openssl_random_pseudo_bytes(16);
         assert(strlen($data) == 16);
@@ -22,6 +27,16 @@ class Rest {
     
         return vsprintf('%s%s', str_split(bin2hex($data), 4));
     }
+
+    function generateToken() : string {
+        $data = openssl_random_pseudo_bytes(16);
+        assert(strlen($data) == 16);
+    
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // set version to 0100
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // set bits 6-7 to 10
+        
+        return strtoupper(vsprintf('%s%s%s%s%s%s%s%s', str_split(bin2hex($data), 4)));
+    }
     
     function getOrders() : string {
         $query = $this->conn->prepare("SELECT * FROM orders");
@@ -30,17 +45,85 @@ class Rest {
         
         return str_replace(['[', ']'], "", json_encode($order));
     }
- 
-    function checkKey($code, $isAdmin = false) : bool {
-        if($isAdmin) {
-            $query = $this->conn->prepare("SELECT id FROM api_keys WHERE code = :code AND admin = '1'");
-        } else {
-            $query = $this->conn->prepare("SELECT id FROM api_keys WHERE code = :code");
+
+    function getUser($email) : array {
+        $query = $this->conn->prepare("SELECT * FROM users WHERE email = :mail");
+        $query->bindParam(":mail", $email);
+        $query->execute();
+
+        return $query->fetch();
+    }
+
+    function createToken($user_id) : string {
+        $expires = date('m/d/Y', time());
+        $token = $this->generateToken();
+        $query = $this->conn->prepare("INSERT INTO api_keys(code, expires, user_id) VALUES(:code, :ex, :user)");
+        $query->bindParam(":code", $token);
+        $query->bindParam(":ex", $expires);
+        $query->bindParam(":user", $user_id);
+        $query->execute();
+
+        return $token.'|'.$expires;
+    }
+
+    function loginUser($email, $password) : bool {
+        $query = $this->conn->prepare("SELECT password FROM users WHERE email = :email");
+        $query->bindParam(":email", $email);
+        $query->execute();
+
+        if($query->rowCount() == 1) {
+            $row = $query->fetch();
+            return password_verify($password, $row["password"]);
         }
-        $query->bindParam(":code", $code);
+
+        return false;
+    }
+
+    function isEmailUsed($email) : bool {
+        $query = $this->conn->prepare("SELECT id FROM users WHERE email = :mail");
+        $query->bindParam(":mail", $email);
         $query->execute();
 
         return $query->rowCount() == 1;
+    }
+
+    function createUser($user) : bool {
+        $password = password_hash($user->password, PASSWORD_DEFAULT);
+        $ts = $this->get_current_time();
+        $query = $this->conn->prepare("INSERT INTO users(username, email, password, created_at) VALUES(:uname, :mail, :pword, :ts)");
+        $query->bindParam(":uname", $user->username);
+        $query->bindParam(":mail", $user->email);
+        $query->bindParam(":pword", $password);
+        $query->bindParam(":ts", $ts);
+
+        return $query->execute();
+    }
+    
+    function getToken($code) : array {
+        $query = $this->conn->prepare("SELECT * FROM api_keys WHERE code = :code");
+        $query->bindParam(":code", $code);
+        $query->execute();
+
+        return $query->fetch();
+    }
+
+    function checkKey($code, $isAdmin = false) : bool {
+        if($isAdmin) {
+            $query = $this->conn->prepare("SELECT expires FROM api_keys WHERE code = :code AND admin = '1'");
+        } else {
+            $query = $this->conn->prepare("SELECT expires FROM api_keys WHERE code = :code");
+        }
+        $query->bindParam(":code", $code);
+        $query->execute();
+        
+        if($query->rowCount() == 1) {
+            $expires = $query->fetch()["expires"];
+            $now = date('m/d/Y', time());
+
+            return $now < $expires;
+        }
+
+        return false;
     }
     
     function deleteOrder($order_id) : bool {
