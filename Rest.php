@@ -37,6 +37,41 @@ class Rest {
         
         return strtoupper(vsprintf('%s%s%s%s%s%s%s%s', str_split(bin2hex($data), 4)));
     }
+
+    function createMenuItem($item) : bool {
+        $query = $this->conn->prepare("INSERT INTO menu_items(title, price, img, description) VALUES(:title, :price, :img, :desc)");
+        $query->bindParam(":title", $item->title);
+        $query->bindParam(":price", $item->price);
+        $query->bindParam(":img", $item->img);
+        $query->bindParam(":desc", $item->description);
+
+        return $query->execute();
+    }
+
+    function updateMenuItem($id, $item) : bool {
+        $query = $this->conn->prepare("UPDATE menu_items SET title = :title, price = :price, img = :img, description = :desc WHERE id = :id");
+        $query->bindParam(":title", $item->title);
+        $query->bindParam(":price", $item->price);
+        $query->bindParam(":img", $item->img);
+        $query->bindParam(":desc", $item->description);
+        $query->bindParam(":id", $id);
+
+        return $query->execute();
+    }
+
+    function deleteMenuItem($id) : bool {
+        $query = $this->conn->prepare("DELETE FROM menu_items WHERE id = :id");
+        $query->bindParam(":id", $id);
+        
+        return $query->execute();
+    }
+
+    function isMenuItem($id) : bool {
+        $query = $this->conn->prepare("SELECT id FROM menu_items WHERE id = :id");
+        $query->bindParam(":id", $id);
+        
+        return $query->execute();
+    }
     
     function getOrders() : string {
         $query = $this->conn->prepare("SELECT * FROM orders");
@@ -57,7 +92,7 @@ class Rest {
     function createToken($user_id) : string {
         $expires = date('m/d/Y', time());
         $token = $this->generateToken();
-        $query = $this->conn->prepare("INSERT INTO api_keys(code, expires, user_id) VALUES(:code, :ex, :user)");
+        $query = $this->conn->prepare("INSERT INTO tokens(code, expires, user_id) VALUES(:code, :ex, :user)");
         $query->bindParam(":code", $token);
         $query->bindParam(":ex", $expires);
         $query->bindParam(":user", $user_id);
@@ -100,7 +135,7 @@ class Rest {
     }
     
     function getToken($code) : array {
-        $query = $this->conn->prepare("SELECT * FROM api_keys WHERE code = :code");
+        $query = $this->conn->prepare("SELECT * FROM tokens WHERE code = :code");
         $query->bindParam(":code", $code);
         $query->execute();
 
@@ -109,9 +144,9 @@ class Rest {
 
     function checkKey($code, $isAdmin = false) : bool {
         if($isAdmin) {
-            $query = $this->conn->prepare("SELECT expires FROM api_keys WHERE code = :code AND admin = '1'");
+            $query = $this->conn->prepare("SELECT expires FROM tokens WHERE code = :code AND admin = '1'");
         } else {
-            $query = $this->conn->prepare("SELECT expires FROM api_keys WHERE code = :code");
+            $query = $this->conn->prepare("SELECT expires FROM tokens WHERE code = :code");
         }
         $query->bindParam(":code", $code);
         $query->execute();

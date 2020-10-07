@@ -6,6 +6,7 @@ require_once "config/config.php";
 require_once "controllers/IndexController.php";
 require_once "controllers/OrdersController.php";
 require_once "controllers/AuthController.php";
+require_once "controllers/MenuController.php";
 require 'vendor/autoload.php';
 $app = new \Slim\App;
 $rest = new Rest($config["database_host"], $config["database_name"], $config["database_username"], $config["database_password"]);
@@ -25,6 +26,11 @@ $app->group('/api', function() use ($app) {
         $app->post('/auth/register',    [new Controller\AuthController, 'register']);
         $app->post('/auth/refresh',     [new Controller\AuthController, 'refresh']);
         $app->post('/auth/profile',     [new Controller\AuthController, 'profile']);
+
+        $app->post('/menu',             [new Controller\MenuController, 'create']);
+        $app->get('/menu',              [new Controller\MenuController, 'get']);
+        $app->put('/menu/{id}',         [new Controller\MenuController, 'update']);
+        $app->delete('/menu/{id}',      [new Controller\MenuController, 'delete']);
     });
 });
 
